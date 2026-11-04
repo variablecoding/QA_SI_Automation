@@ -45,13 +45,17 @@ jobs:
           QA_EXECUTION_ID: ${{ inputs.executionId }}
         run: npm run manifest
 
-      - name: Check the dispatching org matches the secret
+      - name: Check the dispatching org matches the logged-in org
+        env:
+          DISPATCHED_FROM: ${{ inputs.instanceUrl }}
         run: |
           TARGET=$(jq -r .instanceUrl auth/token.json)
-          if [ "$(echo "${{ inputs.instanceUrl }}" | sed "s#/$##")" != "$TARGET" ]; then
-            echo "Dispatching org ${{ inputs.instanceUrl }} does not match the SF_AUTH_URL org $TARGET" >&2
+          # Compare without trailing slashes (plain bash; no sed escaping pitfalls).
+          if [ "${DISPATCHED_FROM%/}" != "${TARGET%/}" ]; then
+            echo "Dispatching org $DISPATCHED_FROM does not match the logged-in org $TARGET" >&2
             exit 1
           fi
+          echo "Org check passed: $TARGET"
 
       - name: Run Playwright and report to Salesforce
         env:
