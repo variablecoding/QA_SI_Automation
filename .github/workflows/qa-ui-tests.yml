@@ -1,0 +1,67 @@
+# Runs QA Automation Accelerator UI tests. Dispatched by Salesforce (QA_GitHubDispatcher)
+# with the execution id; results are posted back to Salesforce by src/reporter.ts.
+# Auth (src/env.ts): secrets SF_CLIENT_ID + SF_USERNAME + SF_JWT_KEY (JWT bearer, recommended)
+# or SF_AUTH_URL (refresh token); optional variable SF_LOGIN_URL (default https://test.salesforce.com).
+name: QA UI Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      executionId:
+        description: Test_Execution__c Id to run
+        required: true
+      instanceUrl:
+        description: My Domain URL of the org that dispatched the run
+        required: true
+
+concurrency:
+  group: qa-ui-${{ inputs.executionId }}
+  cancel-in-progress: false
+
+jobs:
+  ui-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies and browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Log in and build specs from the Salesforce manifest
+        env:
+          SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
+          SF_USERNAME: ${{ secrets.SF_USERNAME }}
+          SF_JWT_KEY: ${{ secrets.SF_JWT_KEY }}
+          SF_LOGIN_URL: ${{ vars.SF_LOGIN_URL }}
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+          QA_EXECUTION_ID: ${{ inputs.executionId }}
+        run: npm run manifest
+
+      - name: Check the dispatching org matches the secret
+        run: |
+          TARGET=$(jq -r .instanceUrl auth/token.json)
+          if [ "$(echo "${{ inputs.instanceUrl }}" | sed "s#/$##")" != "$TARGET" ]; then
+            echo "Dispatching org ${{ inputs.instanceUrl }} does not match the SF_AUTH_URL org $TARGET" >&2
+            exit 1
+          fi
+
+      - name: Run Playwright and report to Salesforce
+        env:
+          QA_EXECUTION_ID: ${{ inputs.executionId }}
+        run: npx playwright test
+
+      - name: Upload traces and videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ inputs.executionId }}
+          path: test-results/
+          retention-days: 14

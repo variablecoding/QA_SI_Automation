@@ -1,0 +1,6 @@
+node_modules/
+generated/
+test-results/
+playwright-report/
+auth.txt
+auth/
