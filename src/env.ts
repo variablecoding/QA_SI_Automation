@@ -59,13 +59,21 @@ export async function authenticate(): Promise<Token> {
     return save({ instanceUrl: json.instance_url.replace(/\/$/, ''), accessToken: json.access_token });
 }
 
+/** Secret values pasted into CI often carry spaces, line breaks or quotes; strip them. */
+function clean(value: string | undefined): string {
+    return (value || '').trim().replace(/^["']|["']$/g, '').trim();
+}
+
 /** OAuth 2.0 JWT bearer flow with the Connected App's certificate key. */
 async function jwtLogin(): Promise<Token> {
-    const loginUrl = (process.env.SF_LOGIN_URL || 'https://test.salesforce.com').replace(/\/$/, '');
+    const loginUrl = (clean(process.env.SF_LOGIN_URL) || 'https://test.salesforce.com').replace(/\/$/, '');
+    const clientId = clean(process.env.SF_CLIENT_ID);
+    // Logged without revealing it, so a wrong secret is easy to spot in the Actions log.
+    console.log(`JWT login: client id ${clientId.slice(0, 6)}…${clientId.slice(-4)} (${clientId.length} chars), user ${clean(process.env.SF_USERNAME)}, login URL ${loginUrl}`);
     const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
     const unsigned = `${encode({ alg: 'RS256' })}.${encode({
-        iss: process.env.SF_CLIENT_ID,
-        sub: process.env.SF_USERNAME,
+        iss: clientId,
+        sub: clean(process.env.SF_USERNAME),
         aud: loginUrl,
         exp: Math.floor(Date.now() / 1000) + 180
     })}`;
