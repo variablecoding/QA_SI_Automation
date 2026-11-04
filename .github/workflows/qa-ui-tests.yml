@@ -20,14 +20,15 @@ concurrency:
 
 jobs:
   ui-tests:
-    runs-on: ubuntu-latest
+    # Pinned: playwright --with-deps installs OS packages per Ubuntu release (ubuntu-latest moves to 26 in Oct 2026).
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies and browser
@@ -64,7 +65,7 @@ jobs:
 
       - name: Upload traces and videos
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-${{ inputs.executionId }}
           path: test-results/
